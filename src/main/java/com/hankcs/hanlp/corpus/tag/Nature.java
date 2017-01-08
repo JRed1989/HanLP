@@ -11,6 +11,8 @@
  */
 package com.hankcs.hanlp.corpus.tag;
 
+import com.hankcs.hanlp.corpus.util.CustomNatureUtility;
+
 /**
  * 词性
  *
@@ -751,12 +753,12 @@ public enum Nature
     wh,
 
     /**
-     * 仅用于始##始，不会出现在分词结果中
+     * 仅用于终##终，不会出现在分词结果中
      */
     end,
 
     /**
-     * 仅用于终##终，不会出现在分词结果中
+     * 仅用于始##始，不会出现在分词结果中
      */
     begin,
 
@@ -782,5 +784,49 @@ public enum Nature
     public boolean startsWith(char prefix)
     {
         return toString().charAt(0) == prefix;
+    }
+
+    /**
+     * 词性的首字母<br>
+     *     词性根据开头的几个字母可以判断大的类别
+     * @return
+     */
+    public char firstChar()
+    {
+        return toString().charAt(0);
+    }
+
+    /**
+     * 安全地将字符串类型的词性转为Enum类型，如果未定义该词性，则返回null
+     * @param name 字符串词性
+     * @return Enum词性
+     */
+    public static Nature fromString(String name)
+    {
+        try
+        {
+            return Nature.valueOf(name);
+        }
+        catch (Exception e)
+        {
+            return null;
+        }
+    }
+
+    /**
+     * 创建自定义词性,如果已有该对应词性,则直接返回已有的词性
+     * @param name 字符串词性
+     * @return Enum词性
+     */
+    public static Nature create(String name)
+    {
+        try
+        {
+            return Nature.valueOf(name);
+        }
+        catch (Exception e)
+        {
+            return CustomNatureUtility.addNature(name);
+        }
     }
 }

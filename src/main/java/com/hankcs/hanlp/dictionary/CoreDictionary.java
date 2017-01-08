@@ -14,7 +14,9 @@ package com.hankcs.hanlp.dictionary;
 import com.hankcs.hanlp.HanLP;
 import com.hankcs.hanlp.collection.trie.DoubleArrayTrie;
 import com.hankcs.hanlp.corpus.io.ByteArray;
+import com.hankcs.hanlp.corpus.io.IOUtil;
 import com.hankcs.hanlp.corpus.tag.Nature;
+import com.hankcs.hanlp.utility.LexiconUtility;
 import com.hankcs.hanlp.utility.Predefine;
 import com.hankcs.hanlp.utility.TextUtility;
 
@@ -65,7 +67,7 @@ public class CoreDictionary
         BufferedReader br = null;
         try
         {
-            br = new BufferedReader(new InputStreamReader(new FileInputStream(path), "UTF-8"));
+            br = new BufferedReader(new InputStreamReader(IOUtil.newInputStream(path), "UTF-8"));
             String line;
             int MAX_FREQUENCY = 0;
             long start = System.currentTimeMillis();
@@ -89,7 +91,7 @@ public class CoreDictionary
             logger.info("核心词典加载成功:" + trie.size() + "个词条，下面将写入缓存……");
             try
             {
-                DataOutputStream out = new DataOutputStream(new FileOutputStream(path + Predefine.BIN_EXT));
+                DataOutputStream out = new DataOutputStream(IOUtil.newOutputStream(path + Predefine.BIN_EXT));
                 Collection<CoreDictionary.Attribute> attributeList = map.values();
                 out.writeInt(attributeList.size());
                 for (CoreDictionary.Attribute attribute : attributeList)
@@ -272,7 +274,7 @@ public class CoreDictionary
                 Attribute attribute = new Attribute(natureCount);
                 for (int i = 0; i < natureCount; ++i)
                 {
-                    attribute.nature[i] = Enum.valueOf(Nature.class, param[2 * i]);
+                    attribute.nature[i] = LexiconUtility.convertStringToNature(param[2 * i], null);
                     attribute.frequency[i] = Integer.parseInt(param[1 + 2 * i]);
                     attribute.totalFrequency += attribute.frequency[i];
                 }
@@ -283,6 +285,27 @@ public class CoreDictionary
                 logger.warning("使用字符串" + natureWithFrequency + "创建词条属性失败！" + TextUtility.exceptionToString(e));
                 return null;
             }
+        }
+
+        /**
+         * 从字节流中加载
+         * @param byteArray
+         * @param natureIndexArray
+         * @return
+         */
+        public static Attribute create(ByteArray byteArray, Nature[] natureIndexArray)
+        {
+            int currentTotalFrequency = byteArray.nextInt();
+            int length = byteArray.nextInt();
+            Attribute attribute = new Attribute(length);
+            attribute.totalFrequency = currentTotalFrequency;
+            for (int j = 0; j < length; ++j)
+            {
+                attribute.nature[j] = natureIndexArray[byteArray.nextInt()];
+                attribute.frequency[j] = byteArray.nextInt();
+            }
+
+            return attribute;
         }
 
         /**
@@ -313,7 +336,6 @@ public class CoreDictionary
          */
         public int getNatureFrequency(final Nature nature)
         {
-            int result = 0;
             int i = 0;
             for (Nature pos : this.nature)
             {
@@ -323,7 +345,7 @@ public class CoreDictionary
                 }
                 ++i;
             }
-            return result;
+            return 0;
         }
 
         /**
@@ -346,12 +368,23 @@ public class CoreDictionary
             }
             return sb.toString();
         }
+
+        public void save(DataOutputStream out) throws IOException
+        {
+            out.writeInt(totalFrequency);
+            out.writeInt(nature.length);
+            for (int i = 0; i < nature.length; ++i)
+            {
+                out.writeInt(nature[i].ordinal());
+                out.writeInt(frequency[i]);
+            }
+        }
     }
 
     /**
      * 获取词语的ID
-     * @param a
-     * @return
+     * @param a 词语
+     * @return ID,如果不存在,则返回-1
      */
     public static int getWordID(String a)
     {

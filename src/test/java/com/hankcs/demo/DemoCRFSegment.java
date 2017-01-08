@@ -28,7 +28,7 @@ public class DemoCRFSegment
     public static void main(String[] args)
     {
         HanLP.Config.ShowTermNature = false;    // 关闭词性显示
-        Segment segment = new CRFSegment();
+        Segment segment = new CRFSegment().enableCustomDictionary(false);
         String[] sentenceArray = new String[]
                 {
                         "HanLP是由一系列模型与算法组成的Java工具包，目标是普及自然语言处理在生产环境中的应用。",
@@ -50,6 +50,15 @@ public class DemoCRFSegment
         {
             List<Term> termList = segment.seg(sentence);
             System.out.println(termList);
+        }
+
+        /**
+         * 内存CookBook:
+         * HanLP内部有智能的内存池，对于同一个CRF模型（模型文件路径作为id区分），只要它没被释放或者内存充足，就不会重新加载。
+         */
+        for (int i = 0; i < 5; ++i)
+        {
+            segment = new CRFSegment();
         }
     }
 }

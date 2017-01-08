@@ -29,26 +29,28 @@ import java.util.TreeMap;
 import static com.hankcs.hanlp.utility.Predefine.logger;
 
 /**
+ * 词、词性相互构成依存关系的统计句法分析模型
  * @author hankcs
  */
 public class WordNatureDependencyModel
 {
-    static DoubleArrayTrie<Attribute> trie;
+    DoubleArrayTrie<Attribute> trie;
 
-    static
+    public WordNatureDependencyModel(String path)
     {
         long start = System.currentTimeMillis();
-        if (load(HanLP.Config.WordNatureModelPath))
+        if (load(path))
         {
-            logger.info("加载依存句法生成模型" + HanLP.Config.WordNatureModelPath + "成功，耗时：" + (System.currentTimeMillis() - start) + " ms");
+            logger.info("加载依存句法生成模型" + path + "成功，耗时：" + (System.currentTimeMillis() - start) + " ms");
         }
         else
         {
-            logger.warning("加载依存句法生成模型" + HanLP.Config.WordNatureModelPath + "失败，耗时：" + (System.currentTimeMillis() - start) + " ms");
+            logger.severe("加载依存句法生成模型" + path + "失败，耗时：" + (System.currentTimeMillis() - start) + " ms");
+            System.exit(-1);
         }
     }
 
-    static boolean load(String path)
+    boolean load(String path)
     {
         trie = new DoubleArrayTrie<Attribute>();
         if (loadDat(path)) return true;
@@ -102,14 +104,13 @@ public class WordNatureDependencyModel
         return true;
     }
 
-    static boolean saveDat(String path, TreeMap<String, Attribute> map)
+    boolean saveDat(String path, TreeMap<String, Attribute> map)
     {
-        if (!trie.save(path + Predefine.TRIE_EXT)) return false;
         Collection<Attribute> attributeList = map.values();
         // 缓存值文件
         try
         {
-            DataOutputStream out = new DataOutputStream(new FileOutputStream(path + Predefine.VALUE_EXT));
+            DataOutputStream out = new DataOutputStream(IOUtil.newOutputStream(path + Predefine.BIN_EXT));
             out.writeInt(attributeList.size());
             for (Attribute attribute : attributeList)
             {
@@ -125,6 +126,7 @@ public class WordNatureDependencyModel
                     out.writeFloat(attribute.p[i]);
                 }
             }
+            if (!trie.save(out)) return false;
             out.close();
         }
         catch (Exception e)
@@ -135,9 +137,9 @@ public class WordNatureDependencyModel
         return true;
     }
 
-    static boolean loadDat(String path)
+    boolean loadDat(String path)
     {
-        ByteArray byteArray = ByteArray.createByteArray(path + Predefine.VALUE_EXT);
+        ByteArray byteArray = ByteArray.createByteArray(path + Predefine.BIN_EXT);
         if (byteArray == null) return false;
         int size = byteArray.nextInt();
         Attribute[] attributeArray = new Attribute[size];
@@ -153,10 +155,10 @@ public class WordNatureDependencyModel
             attributeArray[i] = attribute;
         }
 
-        return trie.load(path + Predefine.TRIE_EXT, attributeArray);
+        return trie.load(byteArray, attributeArray);
     }
 
-    public static Attribute get(String key)
+    public Attribute get(String key)
     {
         return trie.get(key);
     }
@@ -167,7 +169,7 @@ public class WordNatureDependencyModel
      * @param to
      * @return
      */
-    public static Edge getEdge(Node from, Node to)
+    public Edge getEdge(Node from, Node to)
     {
         // 首先尝试词+词
         Attribute attribute = get(from.compiledWord, to.compiledWord);
@@ -185,7 +187,7 @@ public class WordNatureDependencyModel
         return new Edge(from.id, to.id, attribute.dependencyRelation[0], attribute.p[0]);
     }
 
-    public static Attribute get(String from, String to)
+    public Attribute get(String from, String to)
     {
         return get(from + "@" + to);
     }

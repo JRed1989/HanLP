@@ -11,6 +11,8 @@
  */
 package com.hankcs.hanlp.dictionary;
 
+import com.hankcs.hanlp.corpus.io.IOUtil;
+
 import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
@@ -30,7 +32,7 @@ public class TransformMatrixDictionary<E extends Enum<E>>
     /**
      * 内部标签下标最大值不超过这个值，用于矩阵创建
      */
-    public int ordinaryMax;
+    private int ordinaryMax;
 
     public TransformMatrixDictionary(Class<E> enumType)
     {
@@ -71,7 +73,7 @@ public class TransformMatrixDictionary<E extends Enum<E>>
     {
         try
         {
-            BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(path), "UTF-8"));
+            BufferedReader br = new BufferedReader(new InputStreamReader(IOUtil.newInputStream(path), "UTF-8"));
             // 第一行是矩阵的各个类型
             String line = br.readLine();
             String[] _param = line.split(",");
@@ -113,11 +115,12 @@ public class TransformMatrixDictionary<E extends Enum<E>>
                 for (int i = 0; i < ordinaryMax; ++i)
                 {
                     total[j] += matrix[i][j];
+                    total[j] += matrix[j][i];
                 }
             }
             for (int j = 0; j < ordinaryMax; ++j)
             {
-                total[j] += matrix[j][j];
+                total[j] -= matrix[j][j];
             }
             for (int j = 0; j < ordinaryMax; ++j)
             {
@@ -137,7 +140,7 @@ public class TransformMatrixDictionary<E extends Enum<E>>
                 for (int to : states)
                 {
                     double frequency = matrix[from][to] + 1e-8;
-                    transititon_probability[from][to] = -Math.log(frequency / totalFrequency);
+                    transititon_probability[from][to] = -Math.log(frequency / total[from]);
 //                    System.out.println("from" + NR.values()[from] + " to" + NR.values()[to] + " = " + transititon_probability[from][to]);
                 }
             }
@@ -198,6 +201,35 @@ public class TransformMatrixDictionary<E extends Enum<E>>
     protected E convert(String label)
     {
         return Enum.valueOf(enumType, label);
+    }
+
+    /**
+     * 拓展内部矩阵,仅用于通过反射新增了枚举实例之后的兼容措施
+     */
+    public void extendSize()
+    {
+        ++ordinaryMax;
+        double[][] n_transititon_probability = new double[ordinaryMax][ordinaryMax];
+        for (int i = 0; i < transititon_probability.length; i++)
+        {
+            System.arraycopy(transititon_probability[i], 0, n_transititon_probability[i], 0, transititon_probability.length);
+        }
+        transititon_probability = n_transititon_probability;
+
+        int[] n_total = new int[ordinaryMax];
+        System.arraycopy(total, 0, n_total, 0, total.length);
+        total = n_total;
+
+        double[] n_start_probability = new double[ordinaryMax];
+        System.arraycopy(start_probability, 0, n_start_probability, 0, start_probability.length);
+        start_probability = n_start_probability;
+
+        int[][] n_matrix = new int[ordinaryMax][ordinaryMax];
+        for (int i = 0; i < matrix.length; i++)
+        {
+            System.arraycopy(matrix[i], 0, n_matrix[i], 0, matrix.length);
+        }
+        matrix = n_matrix;
     }
 
     @Override

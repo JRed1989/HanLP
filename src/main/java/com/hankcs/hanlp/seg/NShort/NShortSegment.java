@@ -128,6 +128,13 @@ public class NShortSegment extends WordBasedGenerativeModelSegment
             speechTagging(vertexList);
         }
 
+        if (config.useCustomDictionary)
+        {
+            if (config.indexMode)
+                combineByCustomDictionary(vertexList, wordNetAll);
+            else combineByCustomDictionary(vertexList);
+        }
+
         return convert(vertexList, config.offset);
     }
 

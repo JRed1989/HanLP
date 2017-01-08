@@ -2,6 +2,7 @@ package com.hankcs.hanlp.utility;
 
 
 import java.io.*;
+import java.util.Collection;
 
 /**
  * 文本工具类
@@ -75,7 +76,9 @@ public class TextUtility
             int ub2 = getUnsigned(b2);
             if (ub1 < 128)
             {
-                if (" *\"!,.?()[]{}+=/\\;:|".indexOf((char) b1) != -1)
+                if (' ' == b1) return CT_OTHER;
+                if ('\n' == b1) return CT_DELIMITER;
+                if ("*\"!,.?()[]{}+=/\\;:|".indexOf((char) b1) != -1)
                     return CT_DELIMITER;
                 if ("0123456789".indexOf((char)b1) != -1)
                     return CT_NUM;
@@ -162,7 +165,7 @@ public class TextUtility
     }
 
     /**
-     * 把表示数字含义的字符串转你成整形
+     * 把表示数字含义的字符串转成整形
      *
      * @param str 要转换的字符串
      * @return 如果是有意义的整数，则返回此整数值。否则，返回-1。
@@ -695,5 +698,16 @@ public class TextUtility
             }
         }
         return true;
+    }
+
+    public static String join(String delimiter, Collection<String> stringCollection)
+    {
+        StringBuilder sb = new StringBuilder(stringCollection.size() * (16 + delimiter.length()));
+        for (String str : stringCollection)
+        {
+            sb.append(str).append(delimiter);
+        }
+
+        return sb.toString();
     }
 }
