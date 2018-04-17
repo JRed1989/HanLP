@@ -21,9 +21,10 @@ public class DemoBasicTokenizer
 {
     public static void main(String[] args)
     {
-        String text = "举办纪念活动铭记二战历史，不忘战争带给人类的深重灾难，是为了防止悲剧重演，确保和平永驻；" +
-                "铭记二战历史，更是为了提醒国际社会，需要共同捍卫二战胜利成果和国际公平正义，" +
-                "必须警惕和抵制在历史认知和维护战后国际秩序问题上的倒行逆施。";
+//        String text = "举办纪念活动铭记二战历史，不忘战争带给人类的深重灾难，是为了防止悲剧重演，确保和平永驻；" +
+//                "铭记二战历史，更是为了提醒国际社会，需要共同捍卫二战胜利成果和国际公平正义，" +
+//                "必须警惕和抵制在历史认知和维护战后国际秩序问题上的倒行逆施。";
+        String text = "爱因斯坦是德国物理学家";
         System.out.println(BasicTokenizer.segment(text));
         // 测试分词速度，让大家对HanLP的性能有一个直观的认识
         long start = System.currentTimeMillis();

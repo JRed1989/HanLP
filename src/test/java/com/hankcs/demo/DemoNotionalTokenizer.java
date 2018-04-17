@@ -24,7 +24,7 @@ public class DemoNotionalTokenizer
 {
     public static void main(String[] args)
     {
-        String text = "小区居民有的反对喂养流浪猫，而有的居民却赞成喂养这些小宝贝";
+        String text = "财税[2012]25号文第一条“将上年度计提的担保赔偿准备金余额转为当期收入”的规定，其所表述的上年度赔偿准备余额应该理解为2010年当年的计提余额，还是应理解为截止至2010年底的担保赔偿准备金余额累计？";
         // 自动去除停用词
         System.out.println(NotionalTokenizer.segment(text));    // 停用词典位于data/dictionary/stopwords.txt，可以自行修改
         // 自动断句+去除停用词

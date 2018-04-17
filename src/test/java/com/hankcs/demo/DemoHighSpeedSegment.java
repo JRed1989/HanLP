@@ -12,7 +12,10 @@
 package com.hankcs.demo;
 
 import com.hankcs.hanlp.HanLP;
+import com.hankcs.hanlp.seg.common.Term;
 import com.hankcs.hanlp.tokenizer.SpeedTokenizer;
+
+import java.util.List;
 
 /**
  * 演示极速分词，基于DoubleArrayTrie实现的词典正向最长分词，适用于“高吞吐量”“精度一般”的场合
@@ -22,9 +25,17 @@ public class DemoHighSpeedSegment
 {
     public static void main(String[] args)
     {
-        String text = "江西鄱阳湖干枯，中国最大淡水湖变成大草原";
+//        String text = "江西鄱阳湖干枯，中国最大淡水湖变成大草原";
+//        String text = "爱因斯坦是德国物理学家";
+        String text = "我购买一套营业房，因开发商需要改为消防通道，不得不退房，这样开发商需赔偿部分补偿费，请问需要交纳个人所得税吗？我们不得已才退房的。";
         HanLP.Config.ShowTermNature = false;
         System.out.println(SpeedTokenizer.segment(text));
+        List<Term> list = SpeedTokenizer.segment(text);
+
+        for(Term term : list){
+            System.out.print(term.word+" ");
+        }
+
         long start = System.currentTimeMillis();
         int pressure = 1000000;
         for (int i = 0; i < pressure; ++i)
