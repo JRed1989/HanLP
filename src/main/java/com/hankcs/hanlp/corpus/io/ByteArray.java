@@ -22,7 +22,13 @@ import static com.hankcs.hanlp.utility.Predefine.logger;
  */
 public class ByteArray
 {
+    /**
+     * 当前字节数组，不一定是全部字节，可能只是一个片段
+     */
     byte[] bytes;
+    /**
+     * 当前已读取的字节数，或下一个字节的指针
+     */
     int offset;
 
     public ByteArray(byte[] bytes)
@@ -91,6 +97,15 @@ public class ByteArray
     public byte nextByte()
     {
         return bytes[offset++];
+    }
+
+    /**
+     * 读取一个布尔值
+     * @return
+     */
+    public boolean nextBoolean()
+    {
+        return nextByte() == 1;
     }
 
     public boolean hasMore()
@@ -232,5 +247,12 @@ public class ByteArray
     public void close()
     {
         bytes = null;
+    }
+
+    @Override
+    protected void finalize() throws Throwable
+    {
+        // 如果忘记close，则在垃圾回收器释放内存的时候close，总好过完全不close
+        close();
     }
 }

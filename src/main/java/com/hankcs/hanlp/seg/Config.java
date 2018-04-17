@@ -17,9 +17,9 @@ package com.hankcs.hanlp.seg;
 public class Config
 {
     /**
-     * 是否是索引分词（合理地最小分割）
+     * 是否是索引分词（合理地最小分割），indexMode代表全切分词语的最小长度（包含）
      */
-    public boolean indexMode = false;
+    public int indexMode = 0;
     /**
      * 是否识别中国人名
      */
@@ -44,6 +44,10 @@ public class Config
      * 是否加载用户词典
      */
     public boolean useCustomDictionary = true;
+    /**
+     * 用户词典高优先级
+     */
+    public boolean forceCustomDictionary = false;
     /**
      * 词性标注
      */
@@ -71,5 +75,15 @@ public class Config
     public void updateNerConfig()
     {
         ner = nameRecognize || translatedNameRecognize || japaneseNameRecognize || placeRecognize || organizationRecognize;
+    }
+
+    /**
+     * 是否是索引模式
+     *
+     * @return
+     */
+    public boolean isIndexMode()
+    {
+        return indexMode > 0;
     }
 }

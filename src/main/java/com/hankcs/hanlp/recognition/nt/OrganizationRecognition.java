@@ -12,7 +12,7 @@
 package com.hankcs.hanlp.recognition.nt;
 
 import com.hankcs.hanlp.HanLP;
-import com.hankcs.hanlp.algoritm.Viterbi;
+import com.hankcs.hanlp.algorithm.Viterbi;
 import com.hankcs.hanlp.corpus.dictionary.item.EnumItem;
 import com.hankcs.hanlp.corpus.tag.NT;
 import com.hankcs.hanlp.corpus.tag.Nature;
@@ -23,7 +23,6 @@ import com.hankcs.hanlp.seg.common.WordNet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.ListIterator;
 
 /**
  * 地址识别
@@ -32,7 +31,7 @@ import java.util.ListIterator;
  */
 public class OrganizationRecognition
 {
-    public static boolean Recognition(List<Vertex> pWordSegResult, WordNet wordNetOptimum, WordNet wordNetAll)
+    public static boolean recognition(List<Vertex> pWordSegResult, WordNet wordNetOptimum, WordNet wordNetAll)
     {
         List<EnumItem<NT>> roleTagList = roleTag(pWordSegResult, wordNetAll);
         if (HanLP.Config.DEBUG)
@@ -49,7 +48,7 @@ public class OrganizationRecognition
             }
             System.out.printf("机构名角色观察：%s\n", sbLog.toString());
         }
-        List<NT> NTList = viterbiExCompute(roleTagList);
+        List<NT> NTList = viterbiCompute(roleTagList);
         if (HanLP.Config.DEBUG)
         {
             StringBuilder sbLog = new StringBuilder();
@@ -81,7 +80,7 @@ public class OrganizationRecognition
             Nature nature = vertex.guessNature();
             switch (nature)
             {
-                case nz:
+                case nrf:
                 {
                     if (vertex.getAttribute().totalFrequency <= 1000)
                     {
@@ -125,7 +124,7 @@ public class OrganizationRecognition
      * @param roleTagList
      * @return
      */
-    public static List<NT> viterbiExCompute(List<EnumItem<NT>> roleTagList)
+    public static List<NT> viterbiCompute(List<EnumItem<NT>> roleTagList)
     {
         return Viterbi.computeEnum(roleTagList, OrganizationDictionary.transformMatrixDictionary);
     }

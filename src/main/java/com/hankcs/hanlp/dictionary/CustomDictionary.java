@@ -41,14 +41,11 @@ public class CustomDictionary
      */
     public static BinTrie<CoreDictionary.Attribute> trie;
     public static DoubleArrayTrie<CoreDictionary.Attribute> dat = new DoubleArrayTrie<CoreDictionary.Attribute>();
-    /**
-     * 第一个是主词典，其他是副词典
-     */
-    public final static String path[] = HanLP.Config.CustomDictionaryPath;
 
     // 自动加载词典
     static
     {
+        String path[] = HanLP.Config.CustomDictionaryPath;
         long start = System.currentTimeMillis();
         if (!loadMainDictionary(path[0]))
         {
@@ -69,6 +66,7 @@ public class CustomDictionary
         LinkedHashSet<Nature> customNatureCollector = new LinkedHashSet<Nature>();
         try
         {
+            String path[] = HanLP.Config.CustomDictionaryPath;
             for (String p : path)
             {
                 Nature defaultNature = Nature.n;
@@ -149,11 +147,16 @@ public class CustomDictionary
     {
         try
         {
+            String splitter = "\\s";
+            if (path.endsWith(".csv"))
+            {
+                splitter = ",";
+            }
             BufferedReader br = new BufferedReader(new InputStreamReader(IOUtil.newInputStream(path), "UTF-8"));
             String line;
             while ((line = br.readLine()) != null)
             {
-                String[] param = line.split("\\s");
+                String[] param = line.split(splitter);
                 if (param[0].length() == 0) continue;   // 排除空行
                 if (HanLP.Config.Normalization) param[0] = CharTable.convert(param[0]); // 正规化
 
@@ -480,6 +483,24 @@ public class CustomDictionary
     {
         if (trie != null)
         {
+            trie.parseText(text, processor);
+        }
+        DoubleArrayTrie<CoreDictionary.Attribute>.Searcher searcher = dat.getSearcher(text, 0);
+        while (searcher.next())
+        {
+            processor.hit(searcher.begin, searcher.begin + searcher.length, searcher.value);
+        }
+    }
+
+    /**
+     * 解析一段文本（目前采用了BinTrie+DAT的混合储存形式，此方法可以统一两个数据结构）
+     * @param text         文本
+     * @param processor    处理器
+     */
+    public static void parseText(String text, AhoCorasickDoubleArrayTrie.IHit<CoreDictionary.Attribute> processor)
+    {
+        if (trie != null)
+        {
             BaseSearcher searcher = CustomDictionary.getSearcher(text);
             int offset;
             Map.Entry<String, CoreDictionary.Attribute> entry;
@@ -494,5 +515,67 @@ public class CustomDictionary
         {
             processor.hit(searcher.begin, searcher.begin + searcher.length, searcher.value);
         }
+    }
+
+    /**
+     * 最长匹配
+     *
+     * @param text      文本
+     * @param processor 处理器
+     */
+    public static void parseLongestText(String text, AhoCorasickDoubleArrayTrie.IHit<CoreDictionary.Attribute> processor)
+    {
+        if (trie != null)
+        {
+            final int[] lengthArray = new int[text.length()];
+            final CoreDictionary.Attribute[] attributeArray = new CoreDictionary.Attribute[text.length()];
+            char[] charArray = text.toCharArray();
+            DoubleArrayTrie<CoreDictionary.Attribute>.Searcher searcher = dat.getSearcher(charArray, 0);
+            while (searcher.next())
+            {
+                lengthArray[searcher.begin] = searcher.length;
+                attributeArray[searcher.begin] = searcher.value;
+            }
+            trie.parseText(charArray, new AhoCorasickDoubleArrayTrie.IHit<CoreDictionary.Attribute>()
+            {
+                @Override
+                public void hit(int begin, int end, CoreDictionary.Attribute value)
+                {
+                    int length = end - begin;
+                    if (length > lengthArray[begin])
+                    {
+                        lengthArray[begin] = length;
+                        attributeArray[begin] = value;
+                    }
+                }
+            });
+            for (int i = 0; i < charArray.length;)
+            {
+                if (lengthArray[i] == 0)
+                {
+                    ++i;
+                }
+                else
+                {
+                    processor.hit(i, i + lengthArray[i], attributeArray[i]);
+                    i += lengthArray[i];
+                }
+            }
+        }
+        else
+            dat.parseLongestText(text, processor);
+    }
+
+    /**
+     * 热更新（重新加载）<br>
+     * 集群环境（或其他IOAdapter）需要自行删除缓存文件（路径 = HanLP.Config.CustomDictionaryPath[0] + Predefine.BIN_EXT）
+     * @return 是否加载成功
+     */
+    public static boolean reload()
+    {
+        String path[] = HanLP.Config.CustomDictionaryPath;
+        if (path == null || path.length == 0) return false;
+        IOUtil.deleteFile(path[0] + Predefine.BIN_EXT); // 删掉缓存
+        return loadMainDictionary(path[0]);
     }
 }

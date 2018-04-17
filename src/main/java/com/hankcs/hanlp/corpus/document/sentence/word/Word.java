@@ -30,6 +30,8 @@ public class Word implements IWord
     @Override
     public String toString()
     {
+        if (label == null)
+            return value;
         return value + '/' + label;
     }
 
@@ -79,5 +81,11 @@ public class Word implements IWord
     public void setValue(String value)
     {
         this.value = value;
+    }
+
+    @Override
+    public int length()
+    {
+        return value.length();
     }
 }

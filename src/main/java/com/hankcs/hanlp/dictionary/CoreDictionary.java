@@ -41,8 +41,7 @@ public class CoreDictionary
         long start = System.currentTimeMillis();
         if (!load(path))
         {
-            System.err.printf("核心词典%s加载失败\n", path);
-            System.exit(-1);
+            throw new IllegalArgumentException("核心词典" + path + "加载失败");
         }
         else
         {
@@ -356,6 +355,20 @@ public class CoreDictionary
         public boolean hasNature(Nature nature)
         {
             return getNatureFrequency(nature) > 0;
+        }
+
+        /**
+         * 是否有以某个前缀开头的词性
+         * @param prefix 词性前缀，比如u会查询是否有ude, uzhe等等
+         * @return
+         */
+        public boolean hasNatureStartsWith(String prefix)
+        {
+            for (Nature n : nature)
+            {
+                if (n.startsWith(prefix)) return true;
+            }
+            return false;
         }
 
         @Override

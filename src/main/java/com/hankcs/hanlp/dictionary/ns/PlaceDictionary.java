@@ -12,22 +12,17 @@
 package com.hankcs.hanlp.dictionary.ns;
 
 import com.hankcs.hanlp.HanLP;
-import com.hankcs.hanlp.algoritm.ahocorasick.trie.Emit;
-import com.hankcs.hanlp.algoritm.ahocorasick.trie.Trie;
 import com.hankcs.hanlp.collection.AhoCorasick.AhoCorasickDoubleArrayTrie;
 import com.hankcs.hanlp.corpus.dictionary.item.EnumItem;
-import com.hankcs.hanlp.corpus.tag.NR;
 import com.hankcs.hanlp.corpus.tag.NS;
 import com.hankcs.hanlp.dictionary.CoreDictionary;
 import com.hankcs.hanlp.dictionary.TransformMatrixDictionary;
-import com.hankcs.hanlp.dictionary.nr.NRDictionary;
 import com.hankcs.hanlp.seg.common.Vertex;
 import com.hankcs.hanlp.seg.common.WordNet;
 import com.hankcs.hanlp.utility.Predefine;
 
 import java.util.*;
 
-import static com.hankcs.hanlp.corpus.tag.NR.B;
 import static com.hankcs.hanlp.utility.Predefine.logger;
 
 /**
@@ -63,8 +58,10 @@ public class PlaceDictionary
     {
         long start = System.currentTimeMillis();
         dictionary = new NSDictionary();
-        dictionary.load(HanLP.Config.PlaceDictionaryPath);
-        logger.info(HanLP.Config.PlaceDictionaryPath + "加载成功，耗时" + (System.currentTimeMillis() - start) + "ms");
+        if (dictionary.load(HanLP.Config.PlaceDictionaryPath))
+            logger.info(HanLP.Config.PlaceDictionaryPath + "加载成功，耗时" + (System.currentTimeMillis() - start) + "ms");
+        else
+            throw new IllegalArgumentException(HanLP.Config.PlaceDictionaryPath + "加载失败");
         transformMatrixDictionary = new TransformMatrixDictionary<NS>(NS.class);
         transformMatrixDictionary.load(HanLP.Config.PlaceDictionaryTrPath);
         trie = new AhoCorasickDoubleArrayTrie<String>();

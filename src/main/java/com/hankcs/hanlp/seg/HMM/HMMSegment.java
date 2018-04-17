@@ -13,7 +13,7 @@ package com.hankcs.hanlp.seg.HMM;
 import com.hankcs.hanlp.HanLP;
 import com.hankcs.hanlp.corpus.io.ByteArray;
 import com.hankcs.hanlp.model.trigram.CharacterBasedGenerativeModel;
-import com.hankcs.hanlp.seg.CharacterBasedGenerativeModelSegment;
+import com.hankcs.hanlp.seg.CharacterBasedSegment;
 import com.hankcs.hanlp.seg.common.Term;
 import com.hankcs.hanlp.utility.GlobalObjectPool;
 import com.hankcs.hanlp.utility.TextUtility;
@@ -27,7 +27,7 @@ import static com.hankcs.hanlp.utility.Predefine.logger;
  *
  * @author hankcs
  */
-public class HMMSegment extends CharacterBasedGenerativeModelSegment
+public class HMMSegment extends CharacterBasedSegment
 {
     CharacterBasedGenerativeModel model;
 
@@ -48,22 +48,20 @@ public class HMMSegment extends CharacterBasedGenerativeModelSegment
             ByteArray byteArray = ByteArray.createByteArray(modelPath);
             if (byteArray == null)
             {
-                logger.severe("HMM分词模型[ " + modelPath + " ]不存在" );
-                System.exit(-1);
+                throw new IllegalArgumentException("HMM分词模型[ " + modelPath + " ]不存在");
             }
             model.load(byteArray);
         }
         catch (Exception e)
         {
-            logger.severe("发生了异常：" + TextUtility.exceptionToString(e));
-            System.exit(-1);
+            throw new IllegalArgumentException("发生了异常：" + TextUtility.exceptionToString(e));
         }
         logger.info("加载成功，耗时：" + (System.currentTimeMillis() - start) + " ms");
         GlobalObjectPool.put(modelPath, model);
     }
 
     @Override
-    protected List<Term> segSentence(char[] sentence)
+    protected List<Term> roughSegSentence(char[] sentence)
     {
         char[] tag = model.tag(sentence);
         List<Term> termList = new LinkedList<Term>();

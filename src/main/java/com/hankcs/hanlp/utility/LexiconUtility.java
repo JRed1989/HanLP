@@ -41,6 +41,16 @@ public class LexiconUtility
     }
 
     /**
+     * 词库是否收录了词语（查询核心词典和用户词典）
+     * @param word
+     * @return
+     */
+    public static boolean contains(String word)
+    {
+        return getAttribute(word) != null;
+    }
+
+    /**
      * 从HanLP的词库中提取某个单词的属性（包括核心词典和用户词典）
      *
      * @param term 单词
@@ -149,5 +159,15 @@ public class LexiconUtility
             if (customNatureCollector != null) customNatureCollector.add(nature);
             return nature;
         }
+    }
+
+    /**
+     * 将字符串词性转为Enum词性
+     * @param name 词性名称
+     * @return 转换结果
+     */
+    public static Nature convertStringToNature(String name)
+    {
+        return convertStringToNature(name, null);
     }
 }

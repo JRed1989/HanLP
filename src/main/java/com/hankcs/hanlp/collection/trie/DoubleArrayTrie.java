@@ -15,8 +15,8 @@
  */
 package com.hankcs.hanlp.collection.trie;
 
+import com.hankcs.hanlp.collection.AhoCorasick.AhoCorasickDoubleArrayTrie;
 import com.hankcs.hanlp.corpus.io.ByteArray;
-import com.hankcs.hanlp.corpus.io.ByteArrayOtherStream;
 import com.hankcs.hanlp.corpus.io.ByteArrayStream;
 import com.hankcs.hanlp.corpus.io.IOUtil;
 import com.hankcs.hanlp.utility.ByteUtil;
@@ -271,6 +271,19 @@ public class DoubleArrayTrie<V> implements Serializable, ITrie<V>
         allocSize = 0;
         // no_delete_ = false;
         error_ = 0;
+    }
+
+    /**
+     * 从TreeMap构造
+     * @param buildFrom
+     */
+    public DoubleArrayTrie(TreeMap<String, V> buildFrom)
+    {
+        this();
+        if (build(buildFrom) != 0)
+        {
+            throw new IllegalArgumentException("构造失败");
+        }
     }
 
     // no deconstructor
@@ -529,6 +542,32 @@ public class DoubleArrayTrie<V> implements Serializable, ITrie<V>
         {
             base[i] = byteArray.nextInt();
             check[i] = byteArray.nextInt();
+        }
+        v = value;
+        used = null;    // 无用的对象,释放掉
+        return true;
+    }
+
+    /**
+     * 从字节数组加载（发现在MacOS上，此方法比ByteArray更快）
+     * @param bytes
+     * @param offset
+     * @param value
+     * @return
+     */
+    public boolean load(byte[] bytes, int offset, V[] value)
+    {
+        if (bytes == null) return false;
+        size = ByteUtil.bytesHighFirstToInt(bytes, offset);
+        offset += 4;
+        base = new int[size + 65535];   // 多留一些，防止越界
+        check = new int[size + 65535];
+        for (int i = 0; i < size; i++)
+        {
+            base[i] = ByteUtil.bytesHighFirstToInt(bytes, offset);
+            offset += 4;
+            check[i] = ByteUtil.bytesHighFirstToInt(bytes, offset);
+            offset += 4;
         }
         v = value;
         used = null;    // 无用的对象,释放掉
@@ -1191,6 +1230,11 @@ public class DoubleArrayTrie<V> implements Serializable, ITrie<V>
         }
     }
 
+    public Searcher getSearcher(String text)
+    {
+        return getSearcher(text, 0);
+    }
+
     public Searcher getSearcher(String text, int offset)
     {
         return new Searcher(offset, text.toCharArray());
@@ -1199,6 +1243,127 @@ public class DoubleArrayTrie<V> implements Serializable, ITrie<V>
     public Searcher getSearcher(char[] text, int offset)
     {
         return new Searcher(offset, text);
+    }
+
+    /**
+     * 一个最长搜索工具（注意，当调用next()返回false后不应该继续调用next()，除非reset状态）
+     */
+    public class LongestSearcher
+    {
+        /**
+         * key的起点
+         */
+        public int begin;
+        /**
+         * key的长度
+         */
+        public int length;
+        /**
+         * key的字典序坐标
+         */
+        public int index;
+        /**
+         * key对应的value
+         */
+        public V value;
+        /**
+         * 传入的字符数组
+         */
+        private char[] charArray;
+        /**
+         * 上一个字符的下标
+         */
+        private int i;
+        /**
+         * charArray的长度，效率起见，开个变量
+         */
+        private int arrayLength;
+
+        /**
+         * 构造一个双数组搜索工具
+         *
+         * @param offset    搜索的起始位置
+         * @param charArray 搜索的目标字符数组
+         */
+        public LongestSearcher(int offset, char[] charArray)
+        {
+            this.charArray = charArray;
+            i = offset;
+            arrayLength = charArray.length;
+            begin = offset;
+        }
+
+        /**
+         * 取出下一个命中输出
+         *
+         * @return 是否命中，当返回false表示搜索结束，否则使用公开的成员读取命中的详细信息
+         */
+        public boolean next()
+        {
+            value = null;
+            begin = i;
+            int b = base[0];
+            int n;
+            int p;
+
+            for (; ; ++i)
+            {
+                if (i >= arrayLength)               // 指针到头了，将起点往前挪一个，重新开始，状态归零
+                {
+                    return value != null;
+                }
+                p = b + (int) (charArray[i]) + 1;   // 状态转移 p = base[char[i-1]] + char[i] + 1
+                if (b == check[p])                  // base[char[i-1]] == check[base[char[i-1]] + char[i] + 1]
+                    b = base[p];                    // 转移成功
+                else
+                {
+                    if (begin == arrayLength) break;
+                    if (value != null)
+                    {
+                        return true;
+                    }
+
+                    i = begin;                      // 转移失败，也将起点往前挪一个，重新开始，状态归零
+                    ++begin;
+                    b = base[0];
+                }
+                p = b;
+                n = base[p];
+                if (b == check[p] && n < 0)         // base[p] == check[p] && base[p] < 0 查到一个词
+                {
+                    length = i - begin + 1;
+                    index = -n - 1;
+                    value = v[index];
+                }
+            }
+
+            return false;
+        }
+    }
+
+    public LongestSearcher getLongestSearcher(String text, int offset)
+    {
+        return getLongestSearcher(text.toCharArray(), offset);
+    }
+
+    public LongestSearcher getLongestSearcher(char[] text, int offset)
+    {
+        return new LongestSearcher(offset, text);
+    }
+
+    /**
+     * 最长匹配
+     *
+     * @param text      文本
+     * @param processor 处理器
+     */
+    public void parseLongestText(String text, AhoCorasickDoubleArrayTrie.IHit<V> processor)
+    {
+        LongestSearcher searcher = getLongestSearcher(text, 0);
+        while (searcher.next())
+        {
+            processor.hit(searcher.begin, searcher.begin + searcher.length, searcher.value);
+        }
     }
 
     /**

@@ -12,14 +12,21 @@
 package com.hankcs.hanlp;
 
 import com.hankcs.hanlp.corpus.dependency.CoNll.CoNLLSentence;
-import com.hankcs.hanlp.corpus.io.FileIOAdapter;
 import com.hankcs.hanlp.corpus.io.IIOAdapter;
 import com.hankcs.hanlp.dependency.nnparser.NeuralNetworkDependencyParser;
 import com.hankcs.hanlp.dictionary.py.Pinyin;
 import com.hankcs.hanlp.dictionary.py.PinyinDictionary;
 import com.hankcs.hanlp.dictionary.ts.*;
-import com.hankcs.hanlp.phrase.IPhraseExtractor;
-import com.hankcs.hanlp.phrase.MutualInformationEntropyPhraseExtractor;
+import com.hankcs.hanlp.mining.phrase.IPhraseExtractor;
+import com.hankcs.hanlp.mining.phrase.MutualInformationEntropyPhraseExtractor;
+import com.hankcs.hanlp.mining.word.NewWordDiscover;
+import com.hankcs.hanlp.mining.word.WordInfo;
+import com.hankcs.hanlp.model.crf.CRFLexicalAnalyzer;
+import com.hankcs.hanlp.model.perceptron.PerceptronLexicalAnalyzer;
+import com.hankcs.hanlp.seg.CRF.CRFSegment;
+import com.hankcs.hanlp.seg.HMM.HMMSegment;
+import com.hankcs.hanlp.seg.NShort.NShortSegment;
+import com.hankcs.hanlp.seg.Other.DoubleArrayTrieSegment;
 import com.hankcs.hanlp.seg.Segment;
 import com.hankcs.hanlp.seg.Viterbi.ViterbiSegment;
 import com.hankcs.hanlp.seg.common.Term;
@@ -28,11 +35,8 @@ import com.hankcs.hanlp.summary.TextRankSentence;
 import com.hankcs.hanlp.tokenizer.StandardTokenizer;
 import com.hankcs.hanlp.utility.Predefine;
 import com.hankcs.hanlp.utility.TextUtility;
-import sun.reflect.ReflectionFactory;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.lang.reflect.Constructor;
 import java.util.List;
 import java.util.Properties;
@@ -111,10 +115,6 @@ public class HanLP
          * 简繁转换词典根目录
          */
         public static String tcDictionaryRoot = "data/dictionary/tc/";
-        /**
-         * 声母韵母语调词典
-         */
-        public static String SYTDictionaryPath = "data/dictionary/pinyin/SYTDictionary.txt";
 
         /**
          * 拼音词典路径
@@ -134,12 +134,17 @@ public class HanLP
         /**
          * 字符类型对应表
          */
-        public static String CharTypePath = "data/dictionary/other/CharType.dat.yes";
+        public static String CharTypePath = "data/dictionary/other/CharType.bin";
 
         /**
          * 字符正规化表（全角转半角，繁体转简体）
          */
         public static String CharTablePath = "data/dictionary/other/CharTable.txt";
+
+        /**
+         * 词性标注集描述表，用来进行中英映射（对于Nature词性，可直接参考Nature.java中的注释）
+         */
+        public static String PartOfSpeechTagDictionary = "data/dictionary/other/TagPKU98.csv";
 
         /**
          * 词-词性-依存关系模型
@@ -157,6 +162,7 @@ public class HanLP
         /**
          * CRF分词模型
          */
+        // @deprecated 已废弃，请使用{@link com.hankcs.hanlp.model.crf.CRFLexicalAnalyzer}。未来版本将不再发布该模型，并删除配置项
         public static String CRFSegmentModelPath = "data/model/segment/CRFSegmentModel.txt";
         /**
          * HMM分词模型
@@ -164,8 +170,34 @@ public class HanLP
         public static String HMMSegmentModelPath = "data/model/segment/HMMSegmentModel.bin";
         /**
          * CRF依存模型
+         *
+         * @deprecated 已废弃，请使用{@link NeuralNetworkDependencyParser}
          */
         public static String CRFDependencyModelPath = "data/model/dependency/CRFDependencyModelMini.txt";
+        /**
+         * CRF分词模型
+         */
+        public static String CRFCWSModelPath = "data/model/crf/pku199801/cws.bin";
+        /**
+         * CRF词性标注模型
+         */
+        public static String CRFPOSModelPath = "data/model/crf/pku199801/pos.bin";
+        /**
+         * CRF命名实体识别模型
+         */
+        public static String CRFNERModelPath = "data/model/crf/pku199801/ner.bin";
+        /**
+         * 感知机分词模型
+         */
+        public static String PerceptronCWSModelPath = "data/model/perceptron/pku199801/cws.bin";
+        /**
+         * 感知机词性标注模型
+         */
+        public static String PerceptronPOSModelPath = "data/model/perceptron/pku199801/pos.bin";
+        /**
+         * 感知机命名实体识别模型
+         */
+        public static String PerceptronNERModelPath = "data/model/perceptron/pku199801/ner.bin";
         /**
          * 分词结果是否展示词性
          */
@@ -192,11 +224,11 @@ public class HanLP
                     loader = HanLP.Config.class.getClassLoader();
                 }
                 p.load(new InputStreamReader(Predefine.HANLP_PROPERTIES_PATH == null ?
-                        loader.getResourceAsStream("hanlp.properties") :
-                        new FileInputStream(Predefine.HANLP_PROPERTIES_PATH)
-                        , "UTF-8"));
+                                                 loader.getResourceAsStream("hanlp.properties") :
+                                                 new FileInputStream(Predefine.HANLP_PROPERTIES_PATH)
+                    , "UTF-8"));
                 String root = p.getProperty("root", "").replaceAll("\\\\", "/");
-                if (!root.endsWith("/")) root += "/";
+                if (root.length() > 0 && !root.endsWith("/")) root += "/";
                 CoreDictionaryPath = root + p.getProperty("CoreDictionaryPath", CoreDictionaryPath);
                 CoreDictionaryTransformMatrixDictionaryPath = root + p.getProperty("CoreDictionaryTransformMatrixDictionaryPath", CoreDictionaryTransformMatrixDictionaryPath);
                 BiGramDictionaryPath = root + p.getProperty("BiGramDictionaryPath", BiGramDictionaryPath);
@@ -225,7 +257,6 @@ public class HanLP
                 CustomDictionaryPath = pathArray;
                 tcDictionaryRoot = root + p.getProperty("tcDictionaryRoot", tcDictionaryRoot);
                 if (!tcDictionaryRoot.endsWith("/")) tcDictionaryRoot += '/';
-                SYTDictionaryPath = root + p.getProperty("SYTDictionaryPath", SYTDictionaryPath);
                 PinyinDictionaryPath = root + p.getProperty("PinyinDictionaryPath", PinyinDictionaryPath);
                 TranslatedPersonDictionaryPath = root + p.getProperty("TranslatedPersonDictionaryPath", TranslatedPersonDictionaryPath);
                 JapanesePersonDictionaryPath = root + p.getProperty("JapanesePersonDictionaryPath", JapanesePersonDictionaryPath);
@@ -235,12 +266,19 @@ public class HanLP
                 OrganizationDictionaryTrPath = root + p.getProperty("OrganizationDictionaryTrPath", OrganizationDictionaryTrPath);
                 CharTypePath = root + p.getProperty("CharTypePath", CharTypePath);
                 CharTablePath = root + p.getProperty("CharTablePath", CharTablePath);
+                PartOfSpeechTagDictionary = root + p.getProperty("PartOfSpeechTagDictionary", PartOfSpeechTagDictionary);
                 WordNatureModelPath = root + p.getProperty("WordNatureModelPath", WordNatureModelPath);
                 MaxEntModelPath = root + p.getProperty("MaxEntModelPath", MaxEntModelPath);
                 NNParserModelPath = root + p.getProperty("NNParserModelPath", NNParserModelPath);
                 CRFSegmentModelPath = root + p.getProperty("CRFSegmentModelPath", CRFSegmentModelPath);
                 CRFDependencyModelPath = root + p.getProperty("CRFDependencyModelPath", CRFDependencyModelPath);
                 HMMSegmentModelPath = root + p.getProperty("HMMSegmentModelPath", HMMSegmentModelPath);
+                CRFCWSModelPath = root + p.getProperty("CRFCWSModelPath", CRFCWSModelPath);
+                CRFPOSModelPath = root + p.getProperty("CRFPOSModelPath", CRFPOSModelPath);
+                CRFNERModelPath = root + p.getProperty("CRFNERModelPath", CRFNERModelPath);
+                PerceptronCWSModelPath = root + p.getProperty("PerceptronCWSModelPath", PerceptronCWSModelPath);
+                PerceptronPOSModelPath = root + p.getProperty("PerceptronPOSModelPath", PerceptronPOSModelPath);
+                PerceptronNERModelPath = root + p.getProperty("PerceptronNERModelPath", PerceptronNERModelPath);
                 ShowTermNature = "true".equals(p.getProperty("ShowTermNature", "true"));
                 Normalization = "true".equals(p.getProperty("Normalization", "false"));
                 String ioAdapterClassName = p.getProperty("IOAdapter");
@@ -250,7 +288,7 @@ public class HanLP
                     {
                         Class<?> clazz = Class.forName(ioAdapterClassName);
                         Constructor<?> ctor = clazz.getConstructor();
-                        Object instance  = ctor.newInstance();
+                        Object instance = ctor.newInstance();
                         if (instance != null) IOAdapter = (IIOAdapter) instance;
                     }
                     catch (ClassNotFoundException e)
@@ -273,7 +311,7 @@ public class HanLP
             }
             catch (Exception e)
             {
-                StringBuilder sbInfo = new StringBuilder("========Tips========\n请将HanLP.properties放在下列目录：\n"); // 打印一些友好的tips
+                StringBuilder sbInfo = new StringBuilder("========Tips========\n请将hanlp.properties放在下列目录：\n"); // 打印一些友好的tips
                 String classPath = (String) System.getProperties().get("java.class.path");
                 if (classPath != null)
                 {
@@ -286,13 +324,13 @@ public class HanLP
                     }
                 }
                 sbInfo.append("Web项目则请放到下列目录：\n" +
-                                      "Webapp/WEB-INF/lib\n" +
-                                      "Webapp/WEB-INF/classes\n" +
-                                      "Appserver/lib\n" +
-                                      "JRE/lib\n");
+                                  "Webapp/WEB-INF/lib\n" +
+                                  "Webapp/WEB-INF/classes\n" +
+                                  "Appserver/lib\n" +
+                                  "JRE/lib\n");
                 sbInfo.append("并且编辑root=PARENT/path/to/your/data\n");
                 sbInfo.append("现在HanLP将尝试从").append(System.getProperties().get("user.dir")).append("读取data……");
-                logger.severe("没有找到HanLP.properties，可能会导致找不到data\n" + sbInfo);
+                logger.severe("没有找到hanlp.properties，可能会导致找不到data\n" + sbInfo);
             }
         }
 
@@ -306,6 +344,7 @@ public class HanLP
 
         /**
          * 开启调试模式(会降低性能)
+         *
          * @param enable
          */
         public static void enableDebug(boolean enable)
@@ -325,7 +364,9 @@ public class HanLP
     /**
      * 工具类，不需要生成实例
      */
-    private HanLP() {}
+    private HanLP()
+    {
+    }
 
     /**
      * 繁转简
@@ -351,6 +392,7 @@ public class HanLP
 
     /**
      * 简转繁,是{@link com.hankcs.hanlp.HanLP#convertToTraditionalChinese(java.lang.String)}的简称
+     *
      * @param s 简体中文
      * @return 繁体中文(大陆标准)
      */
@@ -361,6 +403,7 @@ public class HanLP
 
     /**
      * 繁转简,是{@link HanLP#convertToSimplifiedChinese(String)}的简称
+     *
      * @param t 繁体中文(大陆标准)
      * @return 简体中文
      */
@@ -371,6 +414,7 @@ public class HanLP
 
     /**
      * 簡體到臺灣正體
+     *
      * @param s 簡體
      * @return 臺灣正體
      */
@@ -381,6 +425,7 @@ public class HanLP
 
     /**
      * 臺灣正體到簡體
+     *
      * @param tw 臺灣正體
      * @return 簡體
      */
@@ -391,6 +436,7 @@ public class HanLP
 
     /**
      * 簡體到香港繁體
+     *
      * @param s 簡體
      * @return 香港繁體
      */
@@ -401,6 +447,7 @@ public class HanLP
 
     /**
      * 香港繁體到簡體
+     *
      * @param hk 香港繁體
      * @return 簡體
      */
@@ -411,6 +458,7 @@ public class HanLP
 
     /**
      * 繁體到臺灣正體
+     *
      * @param t 繁體
      * @return 臺灣正體
      */
@@ -421,6 +469,7 @@ public class HanLP
 
     /**
      * 臺灣正體到繁體
+     *
      * @param tw 臺灣正體
      * @return 繁體
      */
@@ -431,6 +480,7 @@ public class HanLP
 
     /**
      * 繁體到香港繁體
+     *
      * @param t 繁體
      * @return 香港繁體
      */
@@ -441,6 +491,7 @@ public class HanLP
 
     /**
      * 香港繁體到繁體
+     *
      * @param hk 香港繁體
      * @return 繁體
      */
@@ -451,6 +502,7 @@ public class HanLP
 
     /**
      * 香港繁體到臺灣正體
+     *
      * @param hk 香港繁體
      * @return 臺灣正體
      */
@@ -461,6 +513,7 @@ public class HanLP
 
     /**
      * 臺灣正體到香港繁體
+     *
      * @param tw 臺灣正體
      * @return 香港繁體
      */
@@ -472,8 +525,8 @@ public class HanLP
     /**
      * 转化为拼音
      *
-     * @param text 文本
-     * @param separator 分隔符
+     * @param text       文本
+     * @param separator  分隔符
      * @param remainNone 有些字没有拼音（如标点），是否保留它们的拼音（true用none表示，false用原字符表示）
      * @return 一个字符串，由[拼音][分隔符][拼音]构成
      */
@@ -514,8 +567,8 @@ public class HanLP
     /**
      * 转化为拼音（首字母）
      *
-     * @param text 文本
-     * @param separator 分隔符
+     * @param text       文本
+     * @param separator  分隔符
      * @param remainNone 有些字没有拼音（如标点），是否保留它们（用none表示）
      * @return 一个字符串，由[首字母][分隔符][首字母]构成
      */
@@ -552,6 +605,7 @@ public class HanLP
      * 创建一个分词器<br>
      * 这是一个工厂方法<br>
      * 与直接new一个分词器相比，使用本方法的好处是，以后HanLP升级了，总能用上最合适的分词器
+     *
      * @return 一个分词器
      */
     public static Segment newSegment()
@@ -560,7 +614,63 @@ public class HanLP
     }
 
     /**
+     * 创建一个分词器，
+     * 这是一个工厂方法<br>
+     *
+     * @param algorithm 分词算法，传入算法的中英文名都可以，可选列表：<br>
+     *                  <ul>
+     *                  <li>维特比 (viterbi)：效率和效果的最佳平衡</li>
+     *                  <li>双数组trie树 (dat)：极速词典分词，千万字符每秒</li>
+     *                  <li>条件随机场 (crf)：分词、词性标注与命名实体识别精度都较高，适合要求较高的NLP任务</li>
+     *                  <li>感知机 (perceptron)：分词、词性标注与命名实体识别，支持在线学习</li>
+     *                  <li>N最短路 (nshort)：命名实体识别稍微好一些，牺牲了速度</li>
+     *                  <li>2阶隐马 (hmm2)：训练速度较CRF快</li>
+     *                  </ul>
+     * @return 一个分词器
+     */
+    public static Segment newSegment(String algorithm)
+    {
+        if (algorithm == null)
+        {
+            throw new IllegalArgumentException(String.format("非法参数 algorithm == %s", algorithm));
+        }
+        algorithm = algorithm.toLowerCase();
+        if ("viterbi".equals(algorithm) || "维特比".equals(algorithm))
+            return new ViterbiSegment();   // Viterbi分词器是目前效率和效果的最佳平衡
+        else if ("dat".equals(algorithm) || "双数组trie树".equals(algorithm))
+            return new DoubleArrayTrieSegment();
+        else if ("nshort".equals(algorithm) || "n最短路".equals(algorithm))
+            return new NShortSegment();
+        else if ("crf".equals(algorithm) || "条件随机场".equals(algorithm))
+            try
+            {
+                return new CRFLexicalAnalyzer();
+            }
+            catch (IOException e)
+            {
+                logger.warning("CRF模型加载失败");
+                throw new RuntimeException(e);
+            }
+        else if ("hmm2".equals(algorithm) || "二阶隐马".equals(algorithm))
+            return new HMMSegment();
+        else if ("perceptron".equals(algorithm) || "感知机".equals(algorithm))
+        {
+            try
+            {
+                return new PerceptronLexicalAnalyzer();
+            }
+            catch (IOException e)
+            {
+                logger.warning("感知机模型加载失败");
+                throw new RuntimeException(e);
+            }
+        }
+        throw new IllegalArgumentException(String.format("非法参数 algorithm == %s", algorithm));
+    }
+
+    /**
      * 依存文法分析
+     *
      * @param sentence 待分析的句子
      * @return CoNLL格式的依存关系树
      */
@@ -571,6 +681,7 @@ public class HanLP
 
     /**
      * 提取短语
+     *
      * @param text 文本
      * @param size 需要多少个短语
      * @return 一个短语列表，大小 <= size
@@ -582,9 +693,62 @@ public class HanLP
     }
 
     /**
+     * 提取词语
+     *
+     * @param text 大文本
+     * @param size 需要提取词语的数量
+     * @return 一个词语列表
+     */
+    public static List<WordInfo> extractWords(String text, int size)
+    {
+        return extractWords(text, size, false);
+    }
+
+    /**
+     * 提取词语
+     *
+     * @param reader 从reader获取文本
+     * @param size   需要提取词语的数量
+     * @return 一个词语列表
+     */
+    public static List<WordInfo> extractWords(BufferedReader reader, int size) throws IOException
+    {
+        return extractWords(reader, size, false);
+    }
+
+    /**
+     * 提取词语（新词发现）
+     *
+     * @param text         大文本
+     * @param size         需要提取词语的数量
+     * @param newWordsOnly 是否只提取词典中没有的词语
+     * @return 一个词语列表
+     */
+    public static List<WordInfo> extractWords(String text, int size, boolean newWordsOnly)
+    {
+        NewWordDiscover discover = new NewWordDiscover(4, 0.0f, .5f, 100f, newWordsOnly);
+        return discover.discover(text, size);
+    }
+
+    /**
+     * 提取词语（新词发现）
+     *
+     * @param reader       从reader获取文本
+     * @param size         需要提取词语的数量
+     * @param newWordsOnly 是否只提取词典中没有的词语
+     * @return 一个词语列表
+     */
+    public static List<WordInfo> extractWords(BufferedReader reader, int size, boolean newWordsOnly) throws IOException
+    {
+        NewWordDiscover discover = new NewWordDiscover(4, 0.0f, .5f, 100f, newWordsOnly);
+        return discover.discover(reader, size);
+    }
+
+    /**
      * 提取关键词
+     *
      * @param document 文档内容
-     * @param size 希望提取几个关键词
+     * @param size     希望提取几个关键词
      * @return 一个列表
      */
     public static List<String> extractKeyword(String document, int size)
@@ -594,8 +758,10 @@ public class HanLP
 
     /**
      * 自动摘要
+     * 分割目标文档时的默认句子分割符为，,。:：“”？?！!；;
+     *
      * @param document 目标文档
-     * @param size 需要的关键句的个数
+     * @param size     需要的关键句的个数
      * @return 关键句列表
      */
     public static List<String> extractSummary(String document, int size)
@@ -605,7 +771,9 @@ public class HanLP
 
     /**
      * 自动摘要
-     * @param document 目标文档
+     * 分割目标文档时的默认句子分割符为，,。:：“”？?！!；;
+     *
+     * @param document   目标文档
      * @param max_length 需要摘要的长度
      * @return 摘要文本
      */
@@ -615,4 +783,33 @@ public class HanLP
         // The actual length of the summary generated may be short than the required length, but never longer;
         return TextRankSentence.getSummary(document, max_length);
     }
+
+    /**
+     * 自动摘要
+     *
+     * @param document           目标文档
+     * @param size               需要的关键句的个数
+     * @param sentence_separator 分割目标文档时的句子分割符，正则格式， 如：[。？?！!；;]
+     * @return 关键句列表
+     */
+    public static List<String> extractSummary(String document, int size, String sentence_separator)
+    {
+        return TextRankSentence.getTopSentenceList(document, size, sentence_separator);
+    }
+
+    /**
+     * 自动摘要
+     *
+     * @param document           目标文档
+     * @param max_length         需要摘要的长度
+     * @param sentence_separator 分割目标文档时的句子分割符，正则格式， 如：[。？?！!；;]
+     * @return 摘要文本
+     */
+    public static String getSummary(String document, int max_length, String sentence_separator)
+    {
+        // Parameter size in this method refers to the string length of the summary required;
+        // The actual length of the summary generated may be short than the required length, but never longer;
+        return TextRankSentence.getSummary(document, max_length, sentence_separator);
+    }
+
 }

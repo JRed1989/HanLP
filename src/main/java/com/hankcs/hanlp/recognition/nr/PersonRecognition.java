@@ -12,7 +12,7 @@
 package com.hankcs.hanlp.recognition.nr;
 
 import com.hankcs.hanlp.HanLP;
-import com.hankcs.hanlp.algoritm.Viterbi;
+import com.hankcs.hanlp.algorithm.Viterbi;
 import com.hankcs.hanlp.corpus.dictionary.item.EnumItem;
 import com.hankcs.hanlp.corpus.tag.NR;
 import com.hankcs.hanlp.dictionary.nr.PersonDictionary;
@@ -76,8 +76,12 @@ public class PersonRecognition
     public static List<EnumItem<NR>> roleObserve(List<Vertex> wordSegResult)
     {
         List<EnumItem<NR>> tagList = new LinkedList<EnumItem<NR>>();
-        for (Vertex vertex : wordSegResult)
+        Iterator<Vertex> iterator = wordSegResult.iterator();
+        iterator.next();
+        tagList.add(new EnumItem<NR>(NR.A, NR.K)); //  始##始 A K
+        while (iterator.hasNext())
         {
+            Vertex vertex = iterator.next();
             EnumItem<NR> nrEnumItem = PersonDictionary.dictionary.get(vertex.realWord);
             if (nrEnumItem == null)
             {
@@ -88,7 +92,9 @@ public class PersonRecognition
                         // 有些双名实际上可以构成更长的三名
                         if (vertex.getAttribute().totalFrequency <= 1000 && vertex.realWord.length() == 2)
                         {
-                            nrEnumItem = new EnumItem<NR>(NR.X, NR.G);
+                            nrEnumItem = new EnumItem<NR>();
+                            nrEnumItem.labelMap.put(NR.X, 2); // 认为是三字人名前2个字=双字人名的可能性更高
+                            nrEnumItem.labelMap.put(NR.G, 1);
                         }
                         else nrEnumItem = new EnumItem<NR>(NR.A, PersonDictionary.transformMatrixDictionary.getTotalFrequency(NR.A));
                     }break;

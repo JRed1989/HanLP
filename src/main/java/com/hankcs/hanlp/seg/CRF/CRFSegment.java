@@ -12,20 +12,16 @@
 package com.hankcs.hanlp.seg.CRF;
 
 import com.hankcs.hanlp.HanLP;
-import com.hankcs.hanlp.algoritm.Viterbi;
 import com.hankcs.hanlp.collection.trie.bintrie.BinTrie;
 import com.hankcs.hanlp.corpus.tag.Nature;
-import com.hankcs.hanlp.dictionary.CoreDictionary;
-import com.hankcs.hanlp.dictionary.CoreDictionaryTransformMatrixDictionary;
 import com.hankcs.hanlp.dictionary.other.CharTable;
 import com.hankcs.hanlp.model.CRFSegmentModel;
 import com.hankcs.hanlp.model.crf.CRFModel;
 import com.hankcs.hanlp.model.crf.FeatureFunction;
 import com.hankcs.hanlp.model.crf.Table;
-import com.hankcs.hanlp.seg.CharacterBasedGenerativeModelSegment;
+import com.hankcs.hanlp.seg.CharacterBasedSegment;
 import com.hankcs.hanlp.seg.Segment;
 import com.hankcs.hanlp.seg.common.Term;
-import com.hankcs.hanlp.seg.common.Vertex;
 import com.hankcs.hanlp.utility.CharacterHelper;
 import com.hankcs.hanlp.utility.GlobalObjectPool;
 
@@ -39,7 +35,8 @@ import static com.hankcs.hanlp.utility.Predefine.logger;
  *
  * @author hankcs
  */
-public class CRFSegment extends CharacterBasedGenerativeModelSegment
+// @deprecated 已废弃，请使用{@link com.hankcs.hanlp.model.crf.CRFLexicalAnalyzer}
+public class CRFSegment extends CharacterBasedSegment
 {
     private CRFModel crfModel;
 
@@ -50,6 +47,7 @@ public class CRFSegment extends CharacterBasedGenerativeModelSegment
 
     public CRFSegment(String modelPath)
     {
+//        logger.warning("已废弃CRFSegment，请使用功能更丰富、设计更优雅的CRFLexicalAnalyzer");
         crfModel = GlobalObjectPool.get(modelPath);
         if (crfModel != null)
         {
@@ -69,13 +67,14 @@ public class CRFSegment extends CharacterBasedGenerativeModelSegment
         GlobalObjectPool.put(modelPath, crfModel);
     }
 
+    // 已废弃，请使用功能更丰富、设计更优雅的{@link com.hankcs.hanlp.model.crf.CRFLexicalAnalyzer}。
     public CRFSegment()
     {
         this(HanLP.Config.CRFSegmentModelPath);
     }
 
     @Override
-    protected List<Term> segSentence(char[] sentence)
+    protected List<Term> roughSegSentence(char[] sentence)
     {
         if (sentence.length == 0) return Collections.emptyList();
         char[] sentenceConverted = CharTable.convert(sentence);
@@ -109,109 +108,30 @@ public class CRFSegment extends CharacterBasedGenerativeModelSegment
                     }
                     if (i == table.v.length)
                     {
-                        termList.add(new Term(new String(sentence, begin, offset - begin), null));
+                        termList.add(new Term(new String(sentence, begin, offset - begin), toDefaultNature(table.v[i][0])));
                         break OUTER;
                     }
                     else
-                        termList.add(new Term(new String(sentence, begin, offset - begin + table.v[i][1].length()), null));
+                        termList.add(new Term(new String(sentence, begin, offset - begin + table.v[i][1].length()), toDefaultNature(table.v[i][0])));
                 }
                 break;
                 default:
                 {
-                    termList.add(new Term(new String(sentence, offset, table.v[i][1].length()), null));
+                    termList.add(new Term(new String(sentence, offset, table.v[i][1].length()), toDefaultNature(table.v[i][0])));
                 }
                 break;
             }
         }
-
-        if (config.speechTagging)
-        {
-            List<Vertex> vertexList = toVertexList(termList, true);
-            Viterbi.compute(vertexList, CoreDictionaryTransformMatrixDictionary.transformMatrixDictionary);
-            int i = 0;
-            for (Term term : termList)
-            {
-                if (term.nature != null) term.nature = vertexList.get(i + 1).guessNature();
-                ++i;
-            }
-        }
-
-        if (config.useCustomDictionary)
-        {
-            List<Vertex> vertexList = toVertexList(termList, false);
-            combineByCustomDictionary(vertexList);
-            termList = toTermList(vertexList, config.offset);
-        }
-
         return termList;
     }
 
-    private static List<Vertex> toVertexList(List<Term> termList, boolean appendStart)
+    protected static Nature toDefaultNature(String compiledChar)
     {
-        ArrayList<Vertex> vertexList = new ArrayList<Vertex>(termList.size() + 1);
-        if (appendStart) vertexList.add(Vertex.B);
-        for (Term term : termList)
-        {
-            CoreDictionary.Attribute attribute = CoreDictionary.get(term.word);
-            if (attribute == null)
-            {
-                if (term.word.trim().length() == 0) attribute = new CoreDictionary.Attribute(Nature.x);
-                else attribute = new CoreDictionary.Attribute(Nature.nz);
-            }
-            else term.nature = attribute.nature[0];
-            Vertex vertex = new Vertex(term.word, attribute);
-            vertexList.add(vertex);
-        }
-
-        return vertexList;
-    }
-
-    /**
-     * 将一条路径转为最终结果
-     *
-     * @param vertexList
-     * @param offsetEnabled 是否计算offset
-     * @return
-     */
-    protected static List<Term> toTermList(List<Vertex> vertexList, boolean offsetEnabled)
-    {
-        assert vertexList != null;
-        int length = vertexList.size();
-        List<Term> resultList = new ArrayList<Term>(length);
-        Iterator<Vertex> iterator = vertexList.iterator();
-        if (offsetEnabled)
-        {
-            int offset = 0;
-            for (int i = 0; i < length; ++i)
-            {
-                Vertex vertex = iterator.next();
-                Term term = convert(vertex);
-                term.offset = offset;
-                offset += term.length();
-                resultList.add(term);
-            }
-        }
-        else
-        {
-            for (int i = 0; i < length; ++i)
-            {
-                Vertex vertex = iterator.next();
-                Term term = convert(vertex);
-                resultList.add(term);
-            }
-        }
-        return resultList;
-    }
-
-    /**
-     * 将节点转为term
-     *
-     * @param vertex
-     * @return
-     */
-    private static Term convert(Vertex vertex)
-    {
-        return new Term(vertex.realWord, vertex.guessNature());
+        if (compiledChar.equals("M"))
+            return Nature.m;
+        if (compiledChar.equals("W"))
+            return Nature.nx;
+        return null;
     }
 
     public static List<String> atomSegment(char[] sentence)
@@ -371,6 +291,7 @@ public class CRFSegment extends CharacterBasedGenerativeModelSegment
      */
     private static String[][] resizeArray(String[][] array, int size)
     {
+        if (array.length == size) return array;
         String[][] nArray = new String[size][];
         System.arraycopy(array, 0, nArray, 0, size);
         return nArray;

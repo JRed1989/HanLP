@@ -62,8 +62,10 @@ public class OrganizationDictionary
     {
         long start = System.currentTimeMillis();
         dictionary = new NTDictionary();
-        dictionary.load(HanLP.Config.OrganizationDictionaryPath);
-        logger.info(HanLP.Config.OrganizationDictionaryPath + "加载成功，耗时" + (System.currentTimeMillis() - start) + "ms");
+        if (dictionary.load(HanLP.Config.OrganizationDictionaryPath))
+            logger.info(HanLP.Config.OrganizationDictionaryPath + "加载成功，耗时" + (System.currentTimeMillis() - start) + "ms");
+        else
+            throw new IllegalArgumentException(HanLP.Config.OrganizationDictionaryPath + "加载失败");
         transformMatrixDictionary = new TransformMatrixDictionary<NT>(NT.class);
         transformMatrixDictionary.load(HanLP.Config.OrganizationDictionaryTrPath);
         trie = new AhoCorasickDoubleArrayTrie<String>();
@@ -992,6 +994,7 @@ public class OrganizationDictionary
         addKeyword(patternMap, "GGFCCCD");
         addKeyword(patternMap, "GGFCCD");
         addKeyword(patternMap, "GGFCD");
+        addKeyword(patternMap, "GGFCDD");
         addKeyword(patternMap, "GGFD");
         addKeyword(patternMap, "GGFDD");
         addKeyword(patternMap, "GGFFCD");

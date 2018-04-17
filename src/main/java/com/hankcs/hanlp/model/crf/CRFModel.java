@@ -16,6 +16,7 @@ import com.hankcs.hanlp.collection.trie.ITrie;
 import com.hankcs.hanlp.corpus.io.ByteArray;
 import com.hankcs.hanlp.corpus.io.ICacheAble;
 import com.hankcs.hanlp.corpus.io.IOUtil;
+import com.hankcs.hanlp.model.crf.crfpp.Model;
 import com.hankcs.hanlp.utility.Predefine;
 import com.hankcs.hanlp.utility.TextUtility;
 
@@ -27,6 +28,8 @@ import static com.hankcs.hanlp.utility.Predefine.BIN_EXT;
 import static com.hankcs.hanlp.utility.Predefine.logger;
 
 /**
+ * 这份代码目前做到了与CRF++解码结果完全一致。也可以直接使用移植版的CRF++ {@link CRFLexicalAnalyzer}
+ *
  * @author hankcs
  */
 public class CRFModel implements ICacheAble
@@ -59,6 +62,7 @@ public class CRFModel implements ICacheAble
 
     /**
      * 以指定的trie树结构储存内部特征函数
+     *
      * @param featureFunctionTrie
      */
     public CRFModel(ITrie<FeatureFunction> featureFunctionTrie)
@@ -73,7 +77,8 @@ public class CRFModel implements ICacheAble
 
     /**
      * 加载Txt形式的CRF++模型
-     * @param path 模型路径
+     *
+     * @param path     模型路径
      * @param instance 模型的实例（这里允许用户构造不同的CRFModel来储存最终读取的结果）
      * @return 该模型
      */
@@ -104,7 +109,7 @@ public class CRFModel implements ICacheAble
             CRFModel.id2tag[entry.getValue()] = entry.getKey();
         }
         TreeMap<String, FeatureFunction> featureFunctionMap = new TreeMap<String, FeatureFunction>();  // 构建trie树的时候用
-        List<FeatureFunction> featureFunctionList = new LinkedList<FeatureFunction>(); // 读取权值的时候用
+        TreeMap<Integer, FeatureFunction> featureFunctionList = new TreeMap<Integer, FeatureFunction>(); // 读取权值的时候用
         CRFModel.featureTemplateList = new LinkedList<FeatureTemplate>();
         while ((line = lineIterator.next()).length() != 0)
         {
@@ -119,9 +124,12 @@ public class CRFModel implements ICacheAble
             }
         }
 
+        int b = -1;// 转换矩阵的权重位置
         if (CRFModel.matrix != null)
         {
-            lineIterator.next();    // 0 B
+            String[] args = lineIterator.next().split(" ", 2);    // 0 B
+            b = Integer.valueOf(args[0]);
+            featureFunctionList.put(b, null);
         }
 
         while ((line = lineIterator.next()).length() != 0)
@@ -130,25 +138,29 @@ public class CRFModel implements ICacheAble
             char[] charArray = args[1].toCharArray();
             FeatureFunction featureFunction = new FeatureFunction(charArray, size);
             featureFunctionMap.put(args[1], featureFunction);
-            featureFunctionList.add(featureFunction);
+            featureFunctionList.put(Integer.parseInt(args[0]), featureFunction);
         }
 
-        if (CRFModel.matrix != null)
+        for (Map.Entry<Integer, FeatureFunction> entry : featureFunctionList.entrySet())
         {
-            for (int i = 0; i < size; i++)
+            int fid = entry.getKey();
+            FeatureFunction featureFunction = entry.getValue();
+            if (fid == b)
             {
-                for (int j = 0; j < size; j++)
+                for (int i = 0; i < size; i++)
                 {
-                    CRFModel.matrix[i][j] = Double.parseDouble(lineIterator.next());
+                    for (int j = 0; j < size; j++)
+                    {
+                        CRFModel.matrix[i][j] = Double.parseDouble(lineIterator.next());
+                    }
                 }
             }
-        }
-
-        for (FeatureFunction featureFunction : featureFunctionList)
-        {
-            for (int i = 0; i < size; i++)
+            else
             {
-                featureFunction.w[i] = Double.parseDouble(lineIterator.next());
+                for (int i = 0; i < size; i++)
+                {
+                    featureFunction.w[i] = Double.parseDouble(lineIterator.next());
+                }
             }
         }
         if (lineIterator.hasNext())
@@ -211,18 +223,24 @@ public class CRFModel implements ICacheAble
         }
 
         int[][] from = new int[size][tagSize];
+        double[][] maxScoreAt = new double[2][tagSize]; // 滚动数组
+        System.arraycopy(net[0], 0, maxScoreAt[0], 0, tagSize); // 初始preI=0,  maxScoreAt[preI][pre] = net[0][pre]
+        int curI = 0;
         for (int i = 1; i < size; ++i)
         {
+            curI = i & 1;
+            int preI = 1 - curI;
             for (int now = 0; now < tagSize; ++now)
             {
                 double maxScore = -1e10;
                 for (int pre = 0; pre < tagSize; ++pre)
                 {
-                    double score = net[i - 1][pre] + matrix[pre][now] + net[i][now];
+                    double score = maxScoreAt[preI][pre] + matrix[pre][now] + net[i][now];
                     if (score > maxScore)
                     {
                         maxScore = score;
                         from[i][now] = pre;
+                        maxScoreAt[curI][now] = maxScore;
                     }
                 }
                 net[i][now] = maxScore;
@@ -231,11 +249,11 @@ public class CRFModel implements ICacheAble
         // 反向回溯最佳路径
         double maxScore = -1e10;
         int maxTag = 0;
-        for (int tag = 0; tag < net[size - 1].length; ++tag)
+        for (int tag = 0; tag < tagSize; ++tag)
         {
-            if (net[size - 1][tag] > maxScore)
+            if (maxScoreAt[curI][tag] > maxScore)
             {
-                maxScore = net[size - 1][tag];
+                maxScore = maxScoreAt[curI][tag];
                 maxTag = tag;
             }
         }
@@ -252,6 +270,7 @@ public class CRFModel implements ICacheAble
 
     /**
      * 根据特征函数计算输出
+     *
      * @param table
      * @param current
      * @return
@@ -375,7 +394,8 @@ public class CRFModel implements ICacheAble
 
     /**
      * 加载Txt形式的CRF++模型<br>
-     *     同时生成path.bin模型缓存
+     * 同时生成path.bin模型缓存
+     *
      * @param path 模型路径
      * @return 该模型
      */
@@ -386,7 +406,8 @@ public class CRFModel implements ICacheAble
 
     /**
      * 加载CRF++模型<br>
-     *     如果存在缓存的话，优先读取缓存，否则读取txt，并且建立缓存
+     * 如果存在缓存的话，优先读取缓存，否则读取txt，并且建立缓存
+     *
      * @param path txt的路径，即使不存在.txt，只存在.bin，也应传入txt的路径，方法内部会自动加.bin后缀
      * @return
      */
@@ -399,7 +420,8 @@ public class CRFModel implements ICacheAble
 
     /**
      * 加载Bin形式的CRF++模型<br>
-     *     注意该Bin形式不是CRF++的二进制模型,而是HanLP由CRF++的文本模型转换过来的私有格式
+     * 注意该Bin形式不是CRF++的二进制模型,而是HanLP由CRF++的文本模型转换过来的私有格式
+     *
      * @param path
      * @return
      */
@@ -414,6 +436,7 @@ public class CRFModel implements ICacheAble
 
     /**
      * 获取某个tag的ID
+     *
      * @param tag
      * @return
      */

@@ -35,8 +35,7 @@ public class CharTable
         long start = System.currentTimeMillis();
         if (!load(HanLP.Config.CharTablePath))
         {
-            logger.severe("字符正规化表加载失败");
-            System.exit(-1);
+            throw new IllegalArgumentException("字符正规化表加载失败");
         }
         logger.info("字符正规化表加载成功：" + (System.currentTimeMillis() - start) + " ms");
     }
@@ -102,16 +101,21 @@ public class CharTable
         return result;
     }
 
-    public static String convert(String charArray)
+    public static String convert(String sentence)
     {
-        assert charArray != null;
-        char[] result = new char[charArray.length()];
+        assert sentence != null;
+        char[] result = new char[sentence.length()];
+        convert(sentence, result);
+
+        return new String(result);
+    }
+
+    public static void convert(String charArray, char[] result)
+    {
         for (int i = 0; i < charArray.length(); i++)
         {
             result[i] = CONVERT[charArray.charAt(i)];
         }
-
-        return new String(result);
     }
 
     /**
